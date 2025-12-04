@@ -67,7 +67,7 @@ const ChatBotModal = ({ content }: { content: string }) => {
       const fullPrompt = `${systemPrompt}\n\nUser Question: ${userInput}`;
       const result = await model.generateContent(fullPrompt);
       const text = await result.response.text();
-      
+
       setMessages(prev => [
         ...prev,
         { role: "bot", content: text, language }
@@ -82,13 +82,56 @@ const ChatBotModal = ({ content }: { content: string }) => {
     setLoading(false);
   };
 
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      setVoices(availableVoices);
+    };
+
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  const getPreferredVoice = (langCode: string) => {
+    const langVoices = voices.filter(v => v.lang.includes(langCode));
+
+    // Priority list for female voices
+    const femaleKeywords = ['female', 'woman', 'girl', 'samantha', 'zira', 'google', 'karen', 'moira', 'rishi'];
+
+    const femaleVoice = langVoices.find(v =>
+      femaleKeywords.some(keyword => v.name.toLowerCase().includes(keyword))
+    );
+
+    return femaleVoice || langVoices[0] || null;
+  };
+
   const speak = (text: string) => {
     if (synth && text) {
+      // Cancel any ongoing speech
+      synth.cancel();
+
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = getLanguageCode(language);
+      const langCode = getLanguageCode(language);
+      utterance.lang = langCode;
+
+      const preferredVoice = getPreferredVoice(langCode);
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      // Adjust pitch and rate for a more natural female voice if generic
+      if (!preferredVoice?.name.toLowerCase().includes('google')) {
+        utterance.pitch = 1.1; // Slightly higher pitch
+        utterance.rate = 1.0;
+      }
+
       synth.speak(utterance);
       setIsSpeaking(true);
-      
+
       utterance.onend = () => setIsSpeaking(false);
     }
   };
@@ -130,7 +173,7 @@ const ChatBotModal = ({ content }: { content: string }) => {
               <div className="flex items-center gap-3">
                 <Bot className="text-white" />
                 <h3 className="text-white font-semibold">Farm Assistant</h3>
-                <select 
+                <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
                   className="bg-green-700 text-white rounded px-2 py-1 text-sm ml-2"
@@ -160,11 +203,10 @@ const ChatBotModal = ({ content }: { content: string }) => {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      msg.role === "user"
+                    className={`max-w-[80%] rounded-lg p-3 ${msg.role === "user"
                         ? "bg-green-600 text-white"
                         : "bg-white border border-gray-200"
-                    }`}
+                      }`}
                   >
                     <p className="text-sm">{msg.content}</p>
                     {msg.role === "bot" && (
@@ -194,7 +236,7 @@ const ChatBotModal = ({ content }: { content: string }) => {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (!input.trim()) return;
-                  
+
                   const userMessage = input;
                   setMessages(prev => [...prev, { role: "user", content: userMessage }]);
                   setInput("");
@@ -241,12 +283,12 @@ const Results = () => {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
   const handlePrint = () => window.print();
-  
+
   const handleDownload = () => {
     const cleanContent = responseData.replace(/\*\*/g, '');
     const element = document.createElement("a");
-    const file = new Blob([`Smart Farming Recommendations\n\nLocation: ${formData?.state}, ${formData?.district}, ${formData?.block}\nSeason: ${formData?.season}\nSoil Type: ${formData?.soilType}\n\n${cleanContent}`], 
-                        { type: "text/plain" });
+    const file = new Blob([`Smart Farming Recommendations\n\nLocation: ${formData?.state}, ${formData?.district}, ${formData?.block}\nSeason: ${formData?.season}\nSoil Type: ${formData?.soilType}\n\n${cleanContent}`],
+      { type: "text/plain" });
     element.href = URL.createObjectURL(file);
     element.download = "farming_recommendations.txt";
     document.body.appendChild(element);
@@ -256,7 +298,7 @@ const Results = () => {
 
   const scrollToSection = (sectionId: string) => {
     if (sectionRefs.current[sectionId]?.current) {
-      sectionRefs.current[sectionId].current?.scrollIntoView({ 
+      sectionRefs.current[sectionId].current?.scrollIntoView({
         behavior: 'smooth',
         block: 'start'
       });
@@ -267,7 +309,7 @@ const Results = () => {
   useEffect(() => {
     const handleScroll = () => {
       if (!sections.length) return;
-      
+
       let closestSection = sections[0].id;
       let closestDistance = Infinity;
 
@@ -307,22 +349,22 @@ const Results = () => {
     setFormData(locationState.formData);
     setResponseData(locationState.geminiResponse);
     parseResponse(locationState.geminiResponse);
-    
+
     toast({
       title: "Recommendations Ready",
       description: "Personalized results have been loaded successfully.",
     });
-    
+
     setLoading(false);
   }, [location.state, toast]);
 
   const parseResponse = (response: string) => {
     const cleanedResponse = response.replace(/\*\*/g, '');
     const sectionMatches = cleanedResponse.split(/(\d+\.\s+[^:]+):/g);
-    
+
     const parsedSections: Section[] = [];
     let introText = sectionMatches[0].trim();
-    
+
     if (introText) {
       parsedSections.push({
         id: "introduction",
@@ -331,16 +373,16 @@ const Results = () => {
         content: renderSectionContent(introText)
       });
     }
-    
+
     for (let i = 1; i < sectionMatches.length; i += 2) {
       if (i + 1 < sectionMatches.length) {
         const title = sectionMatches[i].replace(/^\d+\.\s/, '').trim();
         const content = sectionMatches[i + 1].trim();
         const id = `section-${title.toLowerCase().replace(/\s+/g, '-')}`;
-        
+
         const iconKey = title.toLowerCase().includes('crop') ? 'crops' :
-                        title.toLowerCase().includes('irrigation') ? 'irrigation' :
-                        title.toLowerCase().includes('fertilizer') ? 'fertilizers' : 'default';
+          title.toLowerCase().includes('irrigation') ? 'irrigation' :
+            title.toLowerCase().includes('fertilizer') ? 'fertilizers' : 'default';
 
         parsedSections.push({
           id,
@@ -350,7 +392,7 @@ const Results = () => {
         });
       }
     }
-    
+
     setSections(parsedSections);
     if (parsedSections.length > 0) {
       setActiveSection(parsedSections[0].id);
@@ -396,16 +438,16 @@ const Results = () => {
       <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-green-50/20 to-gray-50">
         {/* Mobile sidebar toggle */}
         <div className="md:hidden fixed top-16 left-4 z-20 print:hidden">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="bg-white shadow-lg border-green-300/50 hover:bg-green-50"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </Button>
         </div>
-        
+
         {/* Sidebar navigation */}
         <div className={`
           fixed md:relative z-10
@@ -419,17 +461,17 @@ const Results = () => {
           <div className="sticky top-0 p-4 bg-white/90 border-b border-green-100/50">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-green-800">Contents</h2>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
-                className="md:hidden text-green-700 hover:bg-green-100/50" 
+                className="md:hidden text-green-700 hover:bg-green-100/50"
                 onClick={() => setSidebarOpen(false)}
               >
                 <X size={16} />
               </Button>
             </div>
           </div>
-          
+
           <nav className="p-4">
             <div className="mb-6 border-b border-green-100/30 pb-4">
               <h3 className="text-xs uppercase tracking-wider text-green-600/80 font-semibold mb-2">Location Details</h3>
@@ -458,7 +500,7 @@ const Results = () => {
                 </dl>
               )}
             </div>
-            
+
             <h3 className="text-xs uppercase tracking-wider text-green-600/80 font-semibold mb-3">Report Sections</h3>
             <ul className="space-y-1">
               {sections.map((section) => (
@@ -471,7 +513,7 @@ const Results = () => {
                     className={`
                       w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2
                       transition-all duration-200 text-sm
-                      ${activeSection === section.id 
+                      ${activeSection === section.id
                         ? 'bg-green-600/10 text-green-800 font-semibold ring-1 ring-green-600/20'
                         : 'hover:bg-green-50/50 text-gray-600 hover:text-green-800'}
                     `}
@@ -482,10 +524,10 @@ const Results = () => {
                 </li>
               ))}
             </ul>
-            
+
             <div className="mt-8 space-y-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="w-full flex items-center justify-center gap-2 text-green-800 border-green-300/50 hover:bg-green-100/50 hover:border-green-400/50"
                 onClick={handlePrint}
@@ -493,9 +535,9 @@ const Results = () => {
                 <Printer className="h-4 w-4 opacity-80" />
                 Print Report
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 className="w-full flex items-center justify-center gap-2 text-green-800 border-green-300/50 hover:bg-green-100/50 hover:border-green-400/50"
                 onClick={handleDownload}
@@ -503,10 +545,10 @@ const Results = () => {
                 <Download className="h-4 w-4 opacity-80" />
                 Download PDF
               </Button>
-              
+
               <Link to="/" className="block mt-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   className="w-full flex items-center justify-center gap-2 text-green-800 border-green-300/50 hover:bg-green-100/50 hover:border-green-400/50"
                 >
@@ -517,14 +559,14 @@ const Results = () => {
             </div>
           </nav>
         </div>
-        
+
         {/* Main content */}
         <div className="flex-grow p-4 md:p-6 pt-20 md:pt-24 pb-12 overflow-y-auto">
           <div className="max-w-3xl mx-auto">
             {/* Header */}
             <div className="bg-white/90 backdrop-blur-sm border border-green-200/50 rounded-2xl shadow-sm p-6 mb-6">
               <h1 className="text-3xl font-bold text-green-900 mb-2 flex items-center gap-3">
-                <span className="text-2xl">🌱</span> 
+                <span className="text-2xl">🌱</span>
                 <span className="bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                   Smart Farming Plan
                 </span>
@@ -551,8 +593,8 @@ const Results = () => {
             {!loading && !error && (
               <div className="space-y-6">
                 {sections.map((section) => (
-                  <div 
-                    key={section.id} 
+                  <div
+                    key={section.id}
                     id={section.id}
                     ref={el => {
                       if (!sectionRefs.current[section.id]) {
@@ -585,7 +627,7 @@ const Results = () => {
             <BarChart className="h-4 w-4 opacity-80" />
             Visualize Data
           </Button>
-          
+
           <Button
             variant="outline"
             className="flex items-center gap-2 text-green-800 hover:bg-green-50/50 border-green-300/50 hover:border-green-400/50"
@@ -594,7 +636,7 @@ const Results = () => {
             <Book className="h-4 w-4 opacity-80" />
             Crop Library
           </Button>
-          
+
           <Button
             variant="outline"
             className="flex items-center gap-2 text-green-800 hover:bg-green-50/50 border-green-300/50 hover:border-green-400/50"
