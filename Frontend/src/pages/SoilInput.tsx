@@ -45,7 +45,7 @@ const SoilInput = () => {
     e.preventDefault();
 
     // Validate required fields based on selected input method
-    const requiredFields = useDetailedAnalysis 
+    const requiredFields = useDetailedAnalysis
       ? ['nitrogen', 'phosphorus', 'potassium', 'ph', 'season']
       : ['state', 'district', 'block', 'season', 'soilType'];
 
@@ -62,6 +62,16 @@ const SoilInput = () => {
       return;
     }
 
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+      toast({
+        title: "Configuration Error",
+        description: "Please set a valid VITE_GEMINI_API_KEY in your .env file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       toast({
@@ -69,7 +79,7 @@ const SoilInput = () => {
         description: "Please wait a few seconds...",
       });
 
-      const prompt = useDetailedAnalysis 
+      const prompt = useDetailedAnalysis
         ? `
 Based on the detailed soil analysis:
 - Season: ${formData.season}
@@ -104,7 +114,7 @@ Keep suggestions practical, farmer-friendly, and region-specific.
         `;
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCmHEIo20QjzxCrRZOmBSBK_mEtw0TJT2w`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {

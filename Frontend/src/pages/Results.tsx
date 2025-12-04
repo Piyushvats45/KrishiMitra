@@ -31,8 +31,8 @@ interface ChatMessage {
 }
 
 // Gemini client setup
-const genAI = new GoogleGenerativeAI("AIzaSyAPYV4Xo4t9CoQG-Amk4f5KgcnuYr7qOGA");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const genAI = new GoogleGenerativeAI("AIzaSyDZc486tt_ydC7tYUez0z9Uv3LggTwkrek");
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const sectionIcons: { [key: string]: JSX.Element } = {
   introduction: <ScanSearch className="w-5 h-5" />,
